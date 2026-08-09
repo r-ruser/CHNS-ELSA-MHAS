@@ -1,0 +1,41 @@
+# Source and derived data
+data/
+raw/
+restricted/
+results/
+figures/output/
+logs/
+*.dta
+*.sav
+*.sas7bdat
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.rds
+*.RData
+*.rda
+*.parquet
+*.feather
+
+# Research documents and rendered outputs
+*.md
+*.docx
+*.pdf
+*.svg
+*.png
+*.tif
+*.tiff
+*.log
+
+# Local configuration and identifiers
+.Renviron
+.Rhistory
+.Rproj.user/
+*.key
+*.pem
+*manifest*
+*protocol*
+*SAP*
+*report*
+*ethic*
