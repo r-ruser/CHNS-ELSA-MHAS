@@ -1,0 +1,20 @@
+options(stringsAsFactors=FALSE,warn=1)
+suppressPackageStartupMessages({library(dplyr);library(survey)})
+set.seed(20260815)
+project<-normalizePath(getwd(),winslash="/",mustWork=TRUE);dd<-file.path(project,"data","causal_landmark");od<-file.path(project,"results","causal_landmark");td<-file.path(project,"tables","causal_landmark");fd<-file.path(project,"figures","causal_landmark");ld<-file.path(project,"logs","causal_landmark")
+gate<-read.csv(file.path(od,"landmark_calibrated_final_gate.csv"));if(gate$label!="LANDMARK CALIBRATED FINAL WEIGHT GATE PASSED")stop("Calibrated final gate did not pass; outcome access prohibited")
+ws<-readRDS(file.path(dd,"landmark_calibrated_final_weights_MICE5_internal_restricted.rds"))
+# Outcome values are first accessed here, after the calibrated gate passed.
+outcomes<-readRDS(file.path(project,"data","causal","causal_long_full_internal_restricted.rds"))%>%filter(wave==2009)%>%select(Idind,HD_z,KDM_BAA)%>%distinct()
+pool1<-function(q,u){m<-length(q);qb<-mean(q);W<-mean(u);B<-var(q);T<-W+(1+1/m)*B;data.frame(estimate=qb,SE=sqrt(T),lower95=qb-qnorm(.975)*sqrt(T),upper95=qb+qnorm(.975)*sqrt(T),p_value=2*pnorm(-abs(qb/sqrt(T))),within_variance=W,between_variance=B,m=m)}
+outform<-function(y)reformulate(c("A","age2004","sex","province","urban_recent","education_recent","income_recent","income_mean","income_change","assets_recent","assets_mean","assets_change","smoking_recent","alcohol_recent","fuel2004","number_prior_fuel_waves","proportion_prior_solid_only","proportion_prior_mixed","ever_clean_before_2006","ever_mixed_before_2006","number_fuel_transitions","number_clean_to_mixed_reversals","number_mixed_to_solid_reversals","duration_weighted_solid_equivalent_history_to_2004"),response=y)
+primary<-list();aipw<-list();means<-list();perimp<-list()
+for(y in c("HD_z","KDM_BAA")){q<-u<-qa<-ua<-numeric(5)
+ for(j in 1:5){full<-ws[[j]]%>%left_join(outcomes,by="Idind");obs<-full%>%filter(R==1,!is.na(.data[[y]]));des<-svydesign(ids=~commid2004,weights=~final_calibrated_weight,data=obs,nest=TRUE);fit<-svyglm(reformulate("A",response=y),design=des);q[j]<-coef(fit)["A"];u[j]<-vcov(fit)["A","A"]
+  means[[length(means)+1]]<-obs%>%group_by(A)%>%summarise(weighted_mean=sum(.data[[y]]*final_calibrated_weight)/sum(final_calibrated_weight),.groups="drop")%>%mutate(imputation=j,outcome=y)
+  om<-lm(outform(y),data=obs,weights=final_calibrated_weight);n1<-full;n0<-full;n1$A<-1L;n0$A<-0L;m1<-predict(om,newdata=n1);m0<-predict(om,newdata=n0);h<-full$ps_glm*(1-full$ps_glm);contrib<-h*(m1-m0);io<-which(full$R==1&!is.na(full[[y]]));contrib[io]<-contrib[io]+ifelse(full$A[io]==1,full$final_calibrated_weight[io]*(full[[y]][io]-m1[io]),-full$final_calibrated_weight[io]*(full[[y]][io]-m0[io]));den<-sum(h);qa[j]<-sum(contrib)/den;ifv<-contrib-qa[j]*h;cs<-tapply(ifv,full$commid2004,sum);G<-length(cs);ua[j]<-(G/(G-1))*sum((cs-mean(cs))^2)/den^2
+  perimp[[length(perimp)+1]]<-data.frame(imputation=j,outcome=y,primary_estimate=q[j],primary_variance=u[j],AIPW_estimate=qa[j],AIPW_variance=ua[j],N=nrow(obs),communities=n_distinct(obs$commid2004))}
+ primary[[y]]<-pool1(q,u)%>%mutate(outcome=y,method="Calibrated overlap-weighted marginal model",contrast="clean-only 2006 versus continued any-solid 2006",estimand="ATO in the 2004 any-solid overlap population")
+ aipw[[y]]<-pool1(qa,ua)%>%mutate(outcome=y,method="AIPW sensitivity",contrast="clean-only 2006 versus continued any-solid 2006",estimand="ATO in the 2004 any-solid overlap population")}
+res<-bind_rows(c(unname(primary),unname(aipw)))%>%select(outcome,method,contrast,estimand,everything());write.csv(res,file.path(td,"Table_landmark_calibrated_HD_KDM_effects.csv"),row.names=FALSE);write.csv(bind_rows(means),file.path(od,"landmark_calibrated_weighted_means.csv"),row.names=FALSE);write.csv(bind_rows(perimp),file.path(od,"landmark_effects_by_imputation.csv"),row.names=FALSE)
+writeLines(c("LANDMARK_CALIBRATED_OUTCOME=PASS","Primary marginal mean difference and AIPW sensitivity; MICE m=5 Rubin pooling; community-clustered variance."),file.path(ld,"07b_landmark_calibrated_outcome_AIPW.log"),useBytes=TRUE);print(res)

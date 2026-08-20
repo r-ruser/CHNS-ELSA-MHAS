@@ -1,0 +1,11 @@
+options(stringsAsFactors=FALSE,warn=1)
+suppressPackageStartupMessages({library(dagitty);library(ggplot2);library(ggdag);library(ggraph)})
+project<-normalizePath(getwd(),winslash="/",mustWork=TRUE);fd<-file.path(project,"figures","causal_landmark");od<-file.path(project,"results","causal_landmark");ld<-file.path(project,"logs","causal_landmark");for(z in c(fd,od,ld))dir.create(z,FALSE,TRUE)
+g<-dagitty("dag { Baseline -> SES_history; Baseline -> Fuel_history; Baseline -> Fuel2006; Baseline -> HD2009; Baseline -> KDMBAA2009; SES_history -> Fuel2006; SES_history -> HD2009; SES_history -> KDMBAA2009; SES_history -> Biomarker2009; Fuel_history -> Fuel2006; Fuel_history -> HD2009; Fuel_history -> KDMBAA2009; Fuel2004 -> Fuel2006; Fuel2006 -> Fuel2009; Fuel2006 -> HD2009; Fuel2006 -> KDMBAA2009; Fuel2006 -> Biomarker2009; Fuel2009 -> HD2009; Fuel2009 -> KDMBAA2009; Biomarker2009 -> Observed_outcome; HD2009 -> Observed_outcome; KDMBAA2009 -> Observed_outcome }")
+exposures(g)<-"Fuel2006";outcomes(g)<-"HD2009"
+writeLines(as.character(g),file.path(od,"dagitty_landmark_model.txt"),useBytes=TRUE);capture.output(adjustmentSets(g),file=file.path(od,"dagitty_landmark_adjustment_sets.txt"))
+coords<-list(x=c(Baseline=0,SES_history=1,Fuel_history=1,Fuel2004=1.8,Fuel2006=2.8,Fuel2009=3.8,Biomarker2009=3.8,HD2009=5,KDMBAA2009=5,Observed_outcome=6),y=c(Baseline=1.5,SES_history=2.4,Fuel_history=.6,Fuel2004=1.4,Fuel2006=1.4,Fuel2009=.5,Biomarker2009=2.4,HD2009=1.9,KDMBAA2009=.9,Observed_outcome=1.4));coordinates(g)<-coords
+p<-ggdag(g,text=FALSE,use_labels="name")+geom_dag_point(aes(colour=name),size=7,show.legend=FALSE)+geom_dag_text(aes(label=name),size=2.4,colour="white")+scale_colour_manual(values=c(Fuel2006="#0072B2",Fuel2009="#999999",Biomarker2009="#8E6BBE",HD2009="#D55E00",KDMBAA2009="#D55E00",rep("#009E73",5),Observed_outcome="#555555"))+theme_dag()+labs(title="2006 landmark point-treatment DAG",subtitle="Fuel2009 is post-treatment and is not adjusted for in the total-effect model")
+ggsave(file.path(fd,"DAG_landmark_main.pdf"),p,width=183,height=100,units="mm",device=cairo_pdf);ggsave(file.path(fd,"DAG_landmark_main.svg"),p,width=183,height=100,units="mm",device=svglite::svglite)
+writeLines("LANDMARK_DAG=PASS",file.path(ld,"01_landmark_DAG.log"),useBytes=TRUE)
+

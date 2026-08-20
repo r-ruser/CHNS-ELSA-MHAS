@@ -1,0 +1,12 @@
+options(stringsAsFactors=FALSE,warn=1)
+suppressPackageStartupMessages(library(dplyr))
+project<-normalizePath(getwd(),winslash="/",mustWork=TRUE);if(basename(project)!="longitudinal_upgrade")stop("Run from project root")
+od<-file.path(project,"results","causal");td<-file.path(project,"tables","causal");ld<-file.path(project,"logs","causal");for(z in c(od,td,ld))dir.create(z,FALSE,TRUE)
+bal<-read.csv(file.path(od,"balance_wave_summary.csv"))
+failed<-any(is.finite(bal$max_abs_SMD)&bal$max_abs_SMD>=.10)
+if(!failed)stop("Stop-rule guard expected failed balance but did not find it; review pipeline")
+out<-data.frame(outcome=c("HD2009","KDM_BAA2009"),contrast="sustained clean-only vs continued any-solid",estimate=NA_real_,lower95=NA_real_,upper95=NA_real_,p_value=NA_real_,status="WITHHELD",reason="Major wave-specific covariate imbalance remained after two causally plausible treatment-model specifications; MSM outcome fitting was stopped before inspecting effects.")
+write.csv(out,file.path(td,"Table3_MSM_causal_effect_estimates.csv"),row.names=FALSE)
+write.csv(out,file.path(od,"MSM_results_withheld.csv"),row.names=FALSE)
+writeLines(c("MSM_HD_KDM=NOT_RUN","Reason: prespecified balance hard-stop triggered.","No outcome coefficient was inspected or used to select the treatment model."),file.path(ld,"05_MSM_HD_KDM.log"),useBytes=TRUE)
+
